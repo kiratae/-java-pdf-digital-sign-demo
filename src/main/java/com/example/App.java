@@ -39,7 +39,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
  *
  */
 public class App {
-    public static final String KEYSTORE = "C:\\my\\cert\\OilStock\\TanapornKleaklom.pfx";
+    public static final String KEYSTORE = "keys\\TanapornKleaklom.pfx";
     public static final char[] PASSWORD = "password".toCharArray();
     public static final String SRC = "C:\\my\\temp\\hello.pdf";
     public static final String DEST = "C:\\my\\temp\\hello_signed%s.pdf";
