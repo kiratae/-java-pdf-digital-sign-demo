@@ -1,8 +1,10 @@
 package com.example;
 
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -12,8 +14,6 @@ import java.security.cert.X509Certificate;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
-
-import javax.security.auth.x500.X500Principal;
 
 import com.itextpdf.forms.PdfAcroForm;
 import com.itextpdf.forms.fields.PdfFormField;
@@ -26,6 +26,7 @@ import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfName;
 import com.itextpdf.kernel.pdf.PdfNumber;
 import com.itextpdf.kernel.pdf.PdfReader;
+import com.itextpdf.kernel.pdf.PdfStream;
 import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.kernel.pdf.StampingProperties;
 import com.itextpdf.kernel.pdf.annot.PdfAnnotation;
@@ -40,13 +41,20 @@ import com.itextpdf.signatures.BouncyCastleDigest;
 import com.itextpdf.signatures.DigestAlgorithms;
 import com.itextpdf.signatures.IExternalDigest;
 import com.itextpdf.signatures.IExternalSignature;
+import com.itextpdf.signatures.IExternalSignatureContainer;
 import com.itextpdf.signatures.PdfSignatureAppearance;
 import com.itextpdf.signatures.PdfSigner;
 import com.itextpdf.signatures.PrivateKeySignature;
-import com.itextpdf.text.pdf.AcroFields;
-import com.itextpdf.text.pdf.security.PdfPKCS7;
+import com.itextpdf.signatures.PdfPKCS7;
+import com.itextpdf.signatures.SignatureUtil;
+import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.pdf.PdfStamper;
+import com.itextpdf.text.pdf.security.ExternalDigest;
+import com.itextpdf.text.pdf.security.ExternalSignatureContainer;
+import com.itextpdf.text.pdf.security.MakeSignature;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.util.encoders.Base64;
 
 /**
  * Hello world!
@@ -56,6 +64,8 @@ public class App {
         public static final String KEYSTORE = "keys\\TanapornKleaklom.pfx";
         public static final char[] PASSWORD = "password".toCharArray();
         public static final String SRC = "C:\\my\\temp\\hello.pdf";
+        public static final String TEMP = "C:\\my\\temp\\hello-temp.pdf";
+        public static final String TEMP2 = "C:\\my\\temp\\hello-temp2.pdf";
         public static final String DEST = "C:\\my\\temp\\hello_signed%s.pdf";
         public static final String IMG = "./src/main/resources/img/logo.png";
         public static final String SIGNAME = "signature";
@@ -73,7 +83,7 @@ public class App {
                 String location = "TH";
 
                 createPdf(SRC);
-                
+
                 sign(SRC, SIGNAME, String.format(DEST, 1), chain, pk,
                                 DigestAlgorithms.SHA256, provider.getName(), PdfSigner.CryptoStandard.CMS,
                                 "Test 1", location, PdfSignatureAppearance.RenderingMode.DESCRIPTION, null);
@@ -91,10 +101,10 @@ public class App {
                                 DigestAlgorithms.SHA256, provider.getName(), PdfSigner.CryptoStandard.CMS,
                                 "Test 4", location, PdfSignatureAppearance.RenderingMode.GRAPHIC, image);
 
-                verify(String.format(DEST, 1));
-                verify(String.format(DEST, 2));
-                verify(String.format(DEST, 3));
-                verify(String.format(DEST, 4));
+                verifySignatures(String.format(DEST, 1));
+                verifySignatures(String.format(DEST, 2));
+                verifySignatures(String.format(DEST, 3));
+                verifySignatures(String.format(DEST, 4));
         }
 
         public static void createPdf(String filename) throws IOException {
@@ -152,31 +162,6 @@ public class App {
                 doc.close();
         }
 
-        public static boolean verify(String src) throws IOException,
-                        GeneralSecurityException {
-                boolean valid = false;
-                com.itextpdf.text.pdf.PdfReader reader = new com.itextpdf.text.pdf.PdfReader(src);
-                AcroFields acroFields = reader.getAcroFields();
-                List<String> signatureNames = acroFields.getSignatureNames();
-                if (!signatureNames.isEmpty()) {
-                        for (String name : signatureNames) {
-                                if (acroFields.signatureCoversWholeDocument(name)) {
-                                        PdfPKCS7 pkcs7 = acroFields.verifySignature(name);
-                                        valid = pkcs7.verify();
-                                        String reason = pkcs7.getReason();
-                                        Calendar signedAt = pkcs7.getSignDate();
-                                        X509Certificate signingCertificate = pkcs7.getSigningCertificate();
-                                        X500Principal pincipal = signingCertificate.getSubjectX500Principal();
-                                        System.out.println(String.format(
-                                                        "valid = %1$s, date = %2$s, reason = '%3$s', subject = '%4$s'",
-                                                        valid, signedAt.getTime(), reason, pincipal.toString()));
-                                        break;
-                                }
-                        }
-                }
-                return valid;
-        }
-
         public static void sign(String src, String name, String dest, Certificate[] chain, PrivateKey pk,
                         String digestAlgorithm, String provider, PdfSigner.CryptoStandard subfilter,
                         String reason, String location, PdfSignatureAppearance.RenderingMode renderingMode,
@@ -213,5 +198,47 @@ public class App {
 
                 // Sign the document using the detached mode, CMS or CAdES equivalent.
                 signer.signDetached(digest, pks, chain, null, null, null, 0, subfilter);
+        }
+
+        public static void verifySignatures(String path) throws IOException, GeneralSecurityException {
+                PdfReader reader = new PdfReader(path);
+                PdfDocument pdfDoc = new PdfDocument(reader);
+                SignatureUtil signUtil = new SignatureUtil(pdfDoc);
+                List<String> names = signUtil.getSignatureNames();
+
+                System.out.println(path);
+                for (String name : names) {
+                        System.out.println("===== " + name + " =====");
+                        verifySignature(path, signUtil, name);
+                }
+
+                pdfDoc.close();
+        }
+
+        public static PdfPKCS7 verifySignature(String path, SignatureUtil signUtil, String name)
+                        throws IOException, GeneralSecurityException {
+                PdfPKCS7 pkcs7 = signUtil.readSignatureData(name);
+                pkcs7.verifySignatureIntegrityAndAuthenticity();
+
+                X509Certificate cert = (X509Certificate) pkcs7.getSigningCertificate();
+
+                // try (FileOutputStream os = new FileOutputStream(TEMP2)) {
+                // PdfSigner signer = new PdfSigner(new PdfReader(path), os, new
+                // StampingProperties());
+
+                // IExternalSignatureContainer external = new MyExternalSignatureContainer2();
+
+                // // Signs a PDF where space was already reserved. The field must cover the
+                // whole
+                // // document.
+                // PdfSigner.signDeferred(signer.getDocument(), SIGNAME, os, external);
+                // }
+
+                System.out.println("Signature covers whole document: " + signUtil.signatureCoversWholeDocument(name));
+                System.out.println("Document revision: " + signUtil.getRevision(name) + " of "
+                                + signUtil.getTotalRevisions());
+                System.out.println("Integrity check OK? " + pkcs7.verifySignatureIntegrityAndAuthenticity());
+
+                return pkcs7;
         }
 }
