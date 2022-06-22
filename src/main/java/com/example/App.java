@@ -5,7 +5,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
-import java.security.Principal;
 import java.security.PrivateKey;
 import java.security.Security;
 import java.security.cert.Certificate;
@@ -18,7 +17,6 @@ import javax.security.auth.x500.X500Principal;
 
 import com.itextpdf.forms.PdfAcroForm;
 import com.itextpdf.forms.fields.PdfFormField;
-import com.itextpdf.io.font.constants.StandardFonts;
 import com.itextpdf.io.image.ImageData;
 import com.itextpdf.io.image.ImageDataFactory;
 import com.itextpdf.kernel.geom.Rectangle;
@@ -38,23 +36,16 @@ import com.itextpdf.layout.Document;
 import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.kernel.colors.ColorConstants;
-import com.itextpdf.kernel.font.PdfFontFactory;
 import com.itextpdf.signatures.BouncyCastleDigest;
 import com.itextpdf.signatures.DigestAlgorithms;
 import com.itextpdf.signatures.IExternalDigest;
 import com.itextpdf.signatures.IExternalSignature;
-import com.itextpdf.signatures.IExternalSignatureContainer;
 import com.itextpdf.signatures.PdfSignatureAppearance;
 import com.itextpdf.signatures.PdfSigner;
 import com.itextpdf.signatures.PrivateKeySignature;
 import com.itextpdf.text.pdf.AcroFields;
 import com.itextpdf.text.pdf.security.PdfPKCS7;
 
-import org.bouncycastle.asn1.x500.RDN;
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x500.style.BCStyle;
-import org.bouncycastle.asn1.x500.style.IETFUtils;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 /**
@@ -82,6 +73,7 @@ public class App {
                 String location = "TH";
 
                 createPdf(SRC);
+                
                 sign(SRC, SIGNAME, String.format(DEST, 1), chain, pk,
                                 DigestAlgorithms.SHA256, provider.getName(), PdfSigner.CryptoStandard.CMS,
                                 "Test 1", location, PdfSignatureAppearance.RenderingMode.DESCRIPTION, null);
