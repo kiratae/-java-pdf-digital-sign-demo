@@ -14,6 +14,7 @@ import java.security.cert.X509Certificate;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import com.itextpdf.forms.PdfAcroForm;
 import com.itextpdf.forms.fields.PdfFormField;
@@ -23,6 +24,7 @@ import com.itextpdf.kernel.geom.Rectangle;
 import com.itextpdf.kernel.pdf.PdfArray;
 import com.itextpdf.kernel.pdf.PdfDictionary;
 import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfDocumentInfo;
 import com.itextpdf.kernel.pdf.PdfName;
 import com.itextpdf.kernel.pdf.PdfNumber;
 import com.itextpdf.kernel.pdf.PdfReader;
@@ -69,9 +71,12 @@ public class App {
         public static final String DEST = "C:\\my\\temp\\hello_signed%s.pdf";
         public static final String IMG = "./src/main/resources/img/logo.png";
         public static final String SIGNAME = "signature";
+        public static final String INFO_KEY = "doeb_oilstock_uuid";
 
         public static void main(String[] args) throws GeneralSecurityException, IOException {
                 System.out.println("Hello World!");
+                String uuid = UUID.randomUUID().toString();
+                System.out.println(String.format("uuid %s", uuid));
                 BouncyCastleProvider provider = new BouncyCastleProvider();
                 Security.addProvider(provider);
                 KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
@@ -82,7 +87,7 @@ public class App {
                 ImageData image = ImageDataFactory.create(IMG);
                 String location = "TH";
 
-                createPdf(SRC);
+                createPdf(SRC, uuid);
 
                 sign(SRC, SIGNAME, String.format(DEST, 1), chain, pk,
                                 DigestAlgorithms.SHA256, provider.getName(), PdfSigner.CryptoStandard.CMS,
@@ -101,16 +106,18 @@ public class App {
                                 DigestAlgorithms.SHA256, provider.getName(), PdfSigner.CryptoStandard.CMS,
                                 "Test 4", location, PdfSignatureAppearance.RenderingMode.GRAPHIC, image);
 
-                verifySignatures(String.format(DEST, 1));
-                verifySignatures(String.format(DEST, 2));
-                verifySignatures(String.format(DEST, 3));
-                verifySignatures(String.format(DEST, 4));
+                verifySignatures(String.format(DEST, 1), uuid);
+                verifySignatures(String.format(DEST, 2), uuid);
+                verifySignatures(String.format(DEST, 3), uuid);
+                verifySignatures(String.format(DEST, 4), uuid);
         }
 
-        public static void createPdf(String filename) throws IOException {
+        public static void createPdf(String filename, String uuid) throws IOException {
                 PdfDocument pdfDoc = new PdfDocument(new PdfWriter(filename));
+                PdfDocumentInfo info = pdfDoc.getDocumentInfo();
                 Document doc = new Document(pdfDoc);
 
+                info.setMoreInfo(INFO_KEY, uuid);
                 doc.add(new Paragraph("Hello World!"));
 
                 // Create a signature form field
@@ -200,25 +207,35 @@ public class App {
                 signer.signDetached(digest, pks, chain, null, null, null, 0, subfilter);
         }
 
-        public static void verifySignatures(String path) throws IOException, GeneralSecurityException {
+        public static boolean verifySignatures(String path, String uuid) throws IOException, GeneralSecurityException {
+                boolean isValid = true;
                 PdfReader reader = new PdfReader(path);
                 PdfDocument pdfDoc = new PdfDocument(reader);
+                PdfDocumentInfo info = pdfDoc.getDocumentInfo();
+                String docUUID = info.getMoreInfo(INFO_KEY);
+                if (!docUUID.equals(uuid)) {
+                        System.out.println("UUID is not match. ("+ docUUID +")");
+                        isValid = false;
+                }
                 SignatureUtil signUtil = new SignatureUtil(pdfDoc);
                 List<String> names = signUtil.getSignatureNames();
 
                 System.out.println(path);
                 for (String name : names) {
                         System.out.println("===== " + name + " =====");
-                        verifySignature(path, signUtil, name);
+                        PdfPKCS7 pkcs7 = verifySignature(path, signUtil, name);
+                        if (pkcs7 != null && pkcs7.verifySignatureIntegrityAndAuthenticity())
+                                isValid = isValid && true;
                 }
 
                 pdfDoc.close();
+                System.out.println("Is valid: " + isValid);
+                return isValid;
         }
 
         public static PdfPKCS7 verifySignature(String path, SignatureUtil signUtil, String name)
                         throws IOException, GeneralSecurityException {
                 PdfPKCS7 pkcs7 = signUtil.readSignatureData(name);
-                pkcs7.verifySignatureIntegrityAndAuthenticity();
 
                 X509Certificate cert = (X509Certificate) pkcs7.getSigningCertificate();
 
