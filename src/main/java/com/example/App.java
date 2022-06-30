@@ -8,8 +8,10 @@ import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.Security;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Calendar;
 import java.util.Date;
@@ -62,6 +64,8 @@ import org.bouncycastle.util.encoders.Base64;
  */
 public class App {
         public static final String KEYSTORE = "keys\\TanapornKleaklom.pfx";
+        public static final String PUB_KEY = "keys\\clicknext.ibs-l.com.crt";
+        public static final String PRV_KEY = "keys\\clicknext.ibs-l.com.key";
         public static final char[] PASSWORD = "password".toCharArray();
         public static final String SRC = "C:\\my\\temp\\hello.pdf";
         public static final String TEMP = "C:\\my\\temp\\hello-temp.pdf";
@@ -70,7 +74,7 @@ public class App {
         public static final String IMG = "./src/main/resources/img/logo.png";
         public static final String SIGNAME = "signature";
 
-        public static void main(String[] args) throws GeneralSecurityException, IOException {
+        public static void main(String[] args) throws Exception {
                 System.out.println("Hello World!");
                 BouncyCastleProvider provider = new BouncyCastleProvider();
                 Security.addProvider(provider);
@@ -80,6 +84,11 @@ public class App {
                 PrivateKey pk = (PrivateKey) ks.getKey(alias, PASSWORD);
                 Certificate[] chain = ks.getCertificateChain(alias);
                 ImageData image = ImageDataFactory.create(IMG);
+
+                PublicKey publicKey = PublicKeyReader.get(PUB_KEY);
+                PrivateKey privateKey = PrivateKeyReader.get(PRV_KEY);
+                System.out.println(publicKey.getAlgorithm());
+
                 String location = "TH";
 
                 createPdf(SRC);
