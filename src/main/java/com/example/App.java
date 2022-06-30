@@ -86,13 +86,14 @@ public class App {
                 KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
                 ks.load(new FileInputStream(KEYSTORE), PASSWORD);
                 String alias = (String) ks.aliases().nextElement();
-                PrivateKey pk = (PrivateKey) ks.getKey(alias, PASSWORD);
-                Certificate[] chain = ks.getCertificateChain(alias);
+                // PrivateKey pk = (PrivateKey) ks.getKey(alias, PASSWORD);
+                
                 ImageData image = ImageDataFactory.create(IMG);
 
-                PublicKey publicKey = PublicKeyReader.get(PUB_KEY);
-                PrivateKey privateKey = PrivateKeyReader.get(PRV_KEY);
-                System.out.println(publicKey.getAlgorithm());
+                X509Certificate publicKey = PublicKeyReader.get(PUB_KEY);
+                PrivateKey pk = PrivateKeyReader.get(PRV_KEY);
+
+                Certificate[] chain = new Certificate[] { publicKey };
 
                 String location = "TH";
 
@@ -223,21 +224,24 @@ public class App {
                 PdfDocumentInfo info = pdfDoc.getDocumentInfo();
                 String docUUID = info.getMoreInfo(INFO_KEY);
                 if (!docUUID.equals(uuid)) {
-                        System.out.println("UUID is not match. ("+ docUUID +")");
+                        System.out.println("UUID is not match. (" + docUUID + ")");
                         isValid = false;
                 }
-                SignatureUtil signUtil = new SignatureUtil(pdfDoc);
-                List<String> names = signUtil.getSignatureNames();
+                if (isValid) {
+                        SignatureUtil signUtil = new SignatureUtil(pdfDoc);
+                        List<String> names = signUtil.getSignatureNames();
 
-                System.out.println(path);
-                for (String name : names) {
-                        System.out.println("===== " + name + " =====");
-                        PdfPKCS7 pkcs7 = verifySignature(path, signUtil, name);
-                        if (pkcs7 != null && pkcs7.verifySignatureIntegrityAndAuthenticity())
-                                isValid = isValid && true;
+                        System.out.println(path);
+                        for (String name : names) {
+                                System.out.println("===== " + name + " =====");
+                                PdfPKCS7 pkcs7 = verifySignature(path, signUtil, name);
+                                if (pkcs7 != null && pkcs7.verifySignatureIntegrityAndAuthenticity())
+                                        isValid = isValid && true;
+                        }
+
+                        pdfDoc.close();
                 }
 
-                pdfDoc.close();
                 System.out.println("Is valid: " + isValid);
                 return isValid;
         }
