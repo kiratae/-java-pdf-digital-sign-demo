@@ -85,8 +85,6 @@ public class App {
                 Security.addProvider(provider);
                 KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
                 ks.load(new FileInputStream(KEYSTORE), PASSWORD);
-                String alias = (String) ks.aliases().nextElement();
-                // PrivateKey pk = (PrivateKey) ks.getKey(alias, PASSWORD);
                 
                 ImageData image = ImageDataFactory.create(IMG);
 
@@ -249,20 +247,6 @@ public class App {
         public static PdfPKCS7 verifySignature(String path, SignatureUtil signUtil, String name)
                         throws IOException, GeneralSecurityException {
                 PdfPKCS7 pkcs7 = signUtil.readSignatureData(name);
-
-                X509Certificate cert = (X509Certificate) pkcs7.getSigningCertificate();
-
-                // try (FileOutputStream os = new FileOutputStream(TEMP2)) {
-                // PdfSigner signer = new PdfSigner(new PdfReader(path), os, new
-                // StampingProperties());
-
-                // IExternalSignatureContainer external = new MyExternalSignatureContainer2();
-
-                // // Signs a PDF where space was already reserved. The field must cover the
-                // whole
-                // // document.
-                // PdfSigner.signDeferred(signer.getDocument(), SIGNAME, os, external);
-                // }
 
                 System.out.println("Signature covers whole document: " + signUtil.signatureCoversWholeDocument(name));
                 System.out.println("Document revision: " + signUtil.getRevision(name) + " of "
