@@ -237,7 +237,11 @@ public class ShowSignature {
                 }
                 analyseDSS(document);
             }
-            catch (CMSException | OperatorCreationException ex)
+            catch (CMSException ex)
+            {
+                System.out.println("Document are not valid.");
+            }
+            catch (OperatorCreationException ex)
             {
                 throw new IOException(ex);
             }
