@@ -35,10 +35,12 @@ import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import java.util.Vector;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -52,8 +54,11 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDDocumentCatalog;
 import org.apache.pdfbox.pdmodel.PDDocumentInformation;
 import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.encryption.SecurityProvider;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
@@ -116,18 +121,20 @@ public class App {
         public static final String TEMP2 = "C:\\my\\temp\\hello-temp2.pdf";
         public static final String DEST = "C:\\my\\temp\\hello_signed%s.pdf";
         public static final String DEST2 = "C:\\my\\temp\\hello_signed.pdf";
-        public static final String DEST3 = "C:\\my\\temp\\test_signed.pdf";
+        public static final String DEST3 = "C:\\my\\temp\\hello_signed2.pdf";
         public static final String IMG = "./src/main/resources/img/sig.png";
         public static final String SIGNAME = "signature";
         public static final String INFO_KEY = "doeb_oilstock_uuid";
 
         public static void main(String[] args) throws Exception {
+                String uuid = UUID.randomUUID().toString();
                 System.out.println("Hello World!");
+                System.out.println("UUID: " + uuid);
                 // register BouncyCastle provider, needed for "exotic" algorithms
                 Security.addProvider(SecurityProvider.getProvider());
 
                 keyTest();
-                createEmpty();
+                createEmpty(uuid);
 
                 testCreateCert();
 
@@ -140,25 +147,20 @@ public class App {
 
                 File documentFile = new File(SRC);
 
-                CreateVisibleSignature signing = new CreateVisibleSignature(keystore, password.clone());
-
-                File signedDocumentFile;
-                int page;
+                int page = 1;
+                String tsaUrl = null;
                 String name = documentFile.getName();
                 String substring = name.substring(0, name.lastIndexOf('.'));
                 String ouputFileName = substring + "_signed.pdf";
-                try (InputStream imageStream = new FileInputStream(IMG)) {
-                        signedDocumentFile = new File(documentFile.getParent(), ouputFileName);
-                        // page is 1-based here
-                        page = 1;
-                        signing.setVisibleSignDesigner(SRC, 0, 0, -50, imageStream, page);
-                }
-                signing.setVisibleSignatureProperties("name", "location", "Security", 0, page, true);
+                File signedDocumentFile = new File(documentFile.getParent(), ouputFileName);
+
+                // sign PDF
+                CreateSignature signing = new CreateSignature(keystore, password.clone());
                 signing.setExternalSigning(false);
-                signing.signPDF(documentFile, signedDocumentFile, "", SIGNAME);
+                signing.signDetached(documentFile, signedDocumentFile, tsaUrl);
 
                 ShowSignature show = new ShowSignature();
-                show.showSignature(DEST2);
+                show.showSignature(DEST3, "0b7e75c9-07d4-4a49-870b-86f1153d4cca");
                 // editUuid(DEST2);
                 // show.showSignature("C:\\my\\temp\\hello_signed_wrong.pdf");
 
@@ -276,13 +278,88 @@ public class App {
                 System.out.println("-----------------------------------------");
         }
 
-        static void createEmpty() throws IOException {
+        static void createEmpty(String uuid) throws IOException {
                 // Create a new document with an empty page.
                 try (PDDocument document = new PDDocument()) {
                         PDPage page = new PDPage(PDRectangle.A4);
                         document.addPage(page);
                         PDDocumentInformation docInfo = document.getDocumentInformation();
-                        docInfo.setCustomMetadataValue("uuid", "123456");
+                        docInfo.setCustomMetadataValue("uuid", uuid);
+
+                        PDFont font = PDType1Font.HELVETICA_BOLD;
+
+                        PDPageContentStream contentStream = new PDPageContentStream(document, page);
+
+                        // Define a text content stream using the selected font, moving the cursor and
+                        // drawing the text "Hello World"
+                        String title = "Hello World";
+
+                        List<String> lines = new ArrayList<String>();
+                        lines.add("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam blandit ultricies sapien, eget hendrerit leo fermentum id. Morbi a urna a risus consectetur dictum sed at tortor. Integer vestibulum tortor sit amet tortor maximus, vitae sodales leo aliquam. Donec gravida faucibus ante quis tempus. Sed a urna cursus, tincidunt turpis a, tempor orci. In condimentum eu urna quis sodales. Nullam sagittis at purus lacinia convallis. Interdum et malesuada fames ac ante ipsum primis in faucibus. Nullam et purus enim. Nunc vitae fermentum nunc. Vivamus feugiat nibh pulvinar lacus molestie sodales. Nam leo augue, tincidunt vel arcu vitae, ullamcorper auctor velit. Vivamus tincidunt interdum efficitur. Ut sagittis sit amet arcu eu bibendum. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.");
+                        lines.add("Ut leo purus, varius et dapibus quis, imperdiet at eros. Pellentesque sed imperdiet magna. Cras maximus, odio sed imperdiet ornare, velit nunc egestas leo, vel eleifend lacus nunc a enim. Phasellus vitae magna at orci consequat vehicula in lacinia ligula. Quisque nulla sem, congue sed lorem ac, aliquam cursus risus. Quisque vehicula mattis tincidunt. Aenean a ex tincidunt, accumsan nibh ac, auctor enim. Nulla nec eros iaculis libero semper vestibulum ac vitae nisi. Curabitur eu quam egestas, tincidunt arcu in, malesuada urna. Donec turpis mi, maximus sit amet semper eu, scelerisque vel lectus.");
+                        lines.add("Nulla efficitur nisl vitae leo elementum, at vulputate orci pellentesque. Cras et porttitor eros. Vestibulum et rhoncus neque. Nunc congue diam ex, eu varius ipsum euismod eu. Suspendisse potenti. Nullam ultricies vel est eget blandit. Integer rutrum nibh urna, vel vehicula felis hendrerit vitae.");
+
+                        PDRectangle mediabox = page.getMediaBox();
+                        float margin = 72;
+                        int mainWidth = (int)(mediabox.getWidth() - 2 * margin);
+                        float startX = mediabox.getLowerLeftX() + margin;
+                        float startY = mediabox.getUpperRightY() - margin;
+
+                        float titleWidth = font.getStringWidth(title) / 1000 * 16;
+                        float titleHeight = font.getFontDescriptor().getFontBoundingBox().getHeight() / 1000 * 16;
+
+                        contentStream.beginText();
+                        contentStream.setFont(font, 16);
+                        contentStream.newLineAtOffset((mediabox.getWidth() - titleWidth) / 2, mediabox.getHeight() - 60 - titleHeight);
+                        contentStream.showText("Hello World");
+                        contentStream.endText();
+
+                        float leading = 2.5f * 12;
+                        float height = startY - 50;
+                        for (String line : lines) {
+                                int start = 0;
+                                int end = 0;
+                                int index = 0;
+                                for (int i : possibleWrapPoints(line)) {
+                                        float width = font.getStringWidth(line.substring(start, i)) / 1000 * 12;
+                                        if (start < end && width > (mainWidth - (index == 0 ? leading : 0))) {
+                                                // Draw partial text and increase height
+                                                contentStream.beginText();
+                                                contentStream.setFont(font, 12);
+                                                contentStream.newLineAtOffset(startX + (index == 0 ? leading : 0), height);
+                                                contentStream.showText(line.substring(start, end));
+                                                contentStream.endText();
+                                                height -= font.getFontDescriptor().getFontBoundingBox().getHeight() / 1000 * 12;
+                                                start = end;
+                                                index++;
+                                        }
+                                        end = i;
+                                }
+                                contentStream.beginText();
+                                contentStream.setFont(font, 12);
+                                contentStream.newLineAtOffset(startX, height);
+                                contentStream.showText(line.substring(start));
+                                contentStream.endText();
+                                height -= 40;
+                        }
+
+                        String signText = "(Sign here)";
+                        float rectX = mediabox.getUpperRightX() - margin - 200;
+                        float rectY = mediabox.getLowerLeftY() + margin;
+                        float sigWidth = font.getStringWidth(signText) / 1000 * 12;
+
+                        contentStream.moveTo(rectX, rectY + 18);
+                        contentStream.lineTo(rectX + 200, rectY + 18);
+                        contentStream.stroke();
+
+                        contentStream.beginText();
+                        contentStream.setFont(font, 12);
+                        contentStream.newLineAtOffset(rectX + (200 - sigWidth) / 2, rectY);
+                        contentStream.showText(signText);
+                        contentStream.endText();
+
+                        // Make sure that the content stream is closed:
+                        contentStream.close();
 
                         // Add a new AcroForm and add that to the document
                         PDAcroForm acroForm = new PDAcroForm(document);
@@ -292,7 +369,9 @@ public class App {
                         PDSignatureField signatureField = new PDSignatureField(acroForm);
                         signatureField.setPartialName(SIGNAME);
                         PDAnnotationWidget widget = signatureField.getWidgets().get(0);
-                        PDRectangle rect = new PDRectangle(50, 650, 200, 80);
+
+                        
+                        PDRectangle rect = new PDRectangle(rectX, rectY + 20, 200, 80);
                         widget.setRectangle(rect);
                         widget.setPage(page);
 
@@ -306,6 +385,15 @@ public class App {
 
                         document.save(SRC);
                 }
+        }
+
+        static int[] possibleWrapPoints(String text) {
+                String[] split = text.split("(?<=\\W)");
+                int[] ret = new int[split.length];
+                ret[0] = split[0].length();
+                for (int i = 1; i < split.length; i++)
+                        ret[i] = ret[i - 1] + split[i].length();
+                return ret;
         }
 
         static void editUuid(String fileName) throws IOException {
@@ -391,7 +479,8 @@ public class App {
 
         private static void testCreateCert() throws NoSuchAlgorithmException, OperatorCreationException,
                         CertificateException, KeyStoreException, IOException, UnrecoverableKeyException,
-                        InvalidKeyException, NoSuchProviderException, SignatureException, InvalidKeySpecException, PKCSException {
+                        InvalidKeyException, NoSuchProviderException, SignatureException, InvalidKeySpecException,
+                        PKCSException {
                 // --- generate a key pair (you did this already it seems)
                 KeyPairGenerator rsaGen = KeyPairGenerator.getInstance("RSA");
                 final KeyPair pair = rsaGen.generateKeyPair();
@@ -408,7 +497,8 @@ public class App {
                 PrivateKey privateKey;
                 try (InputStream is = new FileInputStream("keys\\server.key")) {
                         String temp = new String(is.readAllBytes());
-                        // String privKeyPEM = temp.replace("-----BEGIN ENCRYPTED PRIVATE KEY-----", "");
+                        // String privKeyPEM = temp.replace("-----BEGIN ENCRYPTED PRIVATE KEY-----",
+                        // "");
                         // privKeyPEM = privKeyPEM.replace("-----END ENCRYPTED PRIVATE KEY-----", "");
                         // byte[] decodedBytes = Base64.decode(privKeyPEM);
                         // PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(decodedBytes);
@@ -464,7 +554,8 @@ public class App {
                                                 "Invalid encrypted private key class: " + o.getClass().getName());
                         }
 
-                        JcaPEMKeyConverter converter = new JcaPEMKeyConverter().setProvider(SecurityProvider.getProvider());
+                        JcaPEMKeyConverter converter = new JcaPEMKeyConverter()
+                                        .setProvider(SecurityProvider.getProvider());
                         return converter.getPrivateKey(pki);
                 }
         }

@@ -39,6 +39,7 @@ import org.apache.pdfbox.io.RandomAccessBufferedFileInputStream;
 import org.apache.pdfbox.pdfparser.PDFParser;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDDocumentCatalog;
+import org.apache.pdfbox.pdmodel.PDDocumentInformation;
 import org.apache.pdfbox.pdmodel.encryption.SecurityProvider;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.COSFilterInputStream;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
@@ -68,12 +69,11 @@ public class ShowSignature {
 
     private final SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss");
 
-    public void showSignature(String fileName) throws IOException,
+    public void showSignature(String fileName, String uuid) throws IOException,
                                                      GeneralSecurityException,
                                                      TSPException,
                                                      CertificateVerificationException
     {
-        
             File infile = new File(fileName);
             // use old-style document loading to disable leniency
             // see also https://www.pdf-insecurity.org/
@@ -85,6 +85,15 @@ public class ShowSignature {
             parser.parse();
             try (PDDocument document = parser.getPDDocument())
             {
+                PDDocumentInformation docInfo = document.getDocumentInformation();
+                String docUuid = docInfo.getCustomMetadataValue("uuid");
+                if(docUuid.equals(uuid)){
+                    System.out.println("Document is valid uuid. (docUuid: " + docUuid + ")");
+                }else{
+                    System.out.println("Document is invalid uuid. (docUuid: " + docUuid + ")");
+                    return;
+                }
+
                 for (PDSignature sig : document.getSignatureDictionaries())
                 {
                     COSDictionary sigDict = sig.getCOSObject();
