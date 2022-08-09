@@ -44,6 +44,7 @@ import java.util.UUID;
 import java.util.Vector;
 
 import javax.net.ssl.KeyManagerFactory;
+import javax.xml.transform.TransformerException;
 
 import org.apache.pdfbox.cos.COSArray;
 import org.apache.pdfbox.cos.COSBase;
@@ -55,10 +56,14 @@ import org.apache.pdfbox.pdmodel.PDDocumentCatalog;
 import org.apache.pdfbox.pdmodel.PDDocumentInformation;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDMetadata;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.encryption.SecurityProvider;
 import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDTrueTypeFont;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.graphics.color.PDOutputIntent;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
@@ -68,6 +73,13 @@ import org.apache.pdfbox.pdmodel.interactive.form.PDNonTerminalField;
 import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
 import org.apache.pdfbox.pdmodel.interactive.form.PDTerminalField;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.xmpbox.XMPMetadata;
+import org.apache.xmpbox.schema.AdobePDFSchema;
+import org.apache.xmpbox.schema.DublinCoreSchema;
+import org.apache.xmpbox.schema.PDFAIdentificationSchema;
+import org.apache.xmpbox.schema.XMPSchema;
+import org.apache.xmpbox.type.BadFieldValueException;
+import org.apache.xmpbox.xml.XmpSerializer;
 import org.bouncycastle.asn1.pkcs.CertificationRequest;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x500.X500Name;
@@ -123,6 +135,8 @@ public class App {
         public static final String DEST2 = "C:\\my\\temp\\hello_signed.pdf";
         public static final String DEST3 = "C:\\my\\temp\\hello_signed2.pdf";
         public static final String IMG = "./src/main/resources/img/sig.png";
+        public static final String FONT = "./src/main/resources/font/Sarabun-Regular.ttf";
+        public static final String PDFA = "./src/main/resources/pdfa/sRGB.icc";
         public static final String SIGNAME = "signature";
         public static final String INFO_KEY = "doeb_oilstock_uuid";
 
@@ -133,7 +147,7 @@ public class App {
                 // register BouncyCastle provider, needed for "exotic" algorithms
                 Security.addProvider(SecurityProvider.getProvider());
 
-                keyTest();
+                // keyTest();
                 createEmpty(uuid);
 
                 testCreateCert();
@@ -160,7 +174,7 @@ public class App {
                 signing.signDetached(documentFile, signedDocumentFile, tsaUrl);
 
                 ShowSignature show = new ShowSignature();
-                show.showSignature(DEST3, "0b7e75c9-07d4-4a49-870b-86f1153d4cca");
+                // show.showSignature(DEST3, "0b7e75c9-07d4-4a49-870b-86f1153d4cca");
                 // editUuid(DEST2);
                 // show.showSignature("C:\\my\\temp\\hello_signed_wrong.pdf");
 
@@ -278,16 +292,65 @@ public class App {
                 System.out.println("-----------------------------------------");
         }
 
-        static void createEmpty(String uuid) throws IOException {
+        static void createEmpty(String uuid) throws IOException, TransformerException, BadFieldValueException {
                 // Create a new document with an empty page.
                 try (PDDocument document = new PDDocument()) {
                         PDPage page = new PDPage(PDRectangle.A4);
                         document.addPage(page);
-                        PDDocumentInformation docInfo = document.getDocumentInformation();
-                        docInfo.setCustomMetadataValue("uuid", uuid);
 
-                        PDFont font = PDType1Font.HELVETICA_BOLD;
+                        // load the font as this needs to be embedded
+                        PDFont font = PDType0Font.load(document, new File(FONT));
 
+                        // A PDF/A file needs to have the font embedded if the font is used for text
+                        // rendering
+                        // in rendering modes other than text rendering mode 3.
+                        //
+                        // This requirement includes the PDF standard fonts, so don't use their static
+                        // PDFType1Font classes such as
+                        // PDFType1Font.HELVETICA.
+                        //
+                        // As there are many different font licenses it is up to the developer to check
+                        // if the license terms for the
+                        // font loaded allows embedding in the PDF.
+                        //
+                        if (!font.isEmbedded()) {
+                                throw new IllegalStateException("PDF/A compliance requires that all fonts used for"
+                                                + " text rendering in rendering modes other than rendering mode 3 are embedded.");
+                        }
+
+                        // add XMP metadata
+                        XMPMetadata xmp = XMPMetadata.createXMPMetadata();
+
+                        try {
+                                DublinCoreSchema dc = xmp.createAndAddDublinCoreSchema();
+                                dc.setTitle("Test");
+
+                                PDFAIdentificationSchema id = xmp.createAndAddPFAIdentificationSchema();
+                                id.setPart(1);
+                                id.setConformance("B");
+
+                                XmpSerializer serializer = new XmpSerializer();
+                                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                                serializer.serialize(xmp, baos, true);
+
+                                PDMetadata metadata = new PDMetadata(document);
+                                metadata.importXMPMetadata(baos.toByteArray());
+                                document.getDocumentCatalog().setMetadata(metadata);
+                        } catch (BadFieldValueException e) {
+                                // won't happen here, as the provided value is valid
+                                throw new IllegalArgumentException(e);
+                        }
+
+                        // sRGB output intent
+                        InputStream colorProfile = new FileInputStream(PDFA);
+                        PDOutputIntent intent = new PDOutputIntent(document, colorProfile);
+                        intent.setInfo("sRGB IEC61966-2.1");
+                        intent.setOutputCondition("sRGB IEC61966-2.1");
+                        intent.setOutputConditionIdentifier("sRGB IEC61966-2.1");
+                        intent.setRegistryName("http://www.color.org");
+                        document.getDocumentCatalog().addOutputIntent(intent);
+
+                        // start write text
                         PDPageContentStream contentStream = new PDPageContentStream(document, page);
 
                         // Define a text content stream using the selected font, moving the cursor and
@@ -301,7 +364,7 @@ public class App {
 
                         PDRectangle mediabox = page.getMediaBox();
                         float margin = 72;
-                        int mainWidth = (int)(mediabox.getWidth() - 2 * margin);
+                        int mainWidth = (int) (mediabox.getWidth() - 2 * margin);
                         float startX = mediabox.getLowerLeftX() + margin;
                         float startY = mediabox.getUpperRightY() - margin;
 
@@ -310,7 +373,8 @@ public class App {
 
                         contentStream.beginText();
                         contentStream.setFont(font, 16);
-                        contentStream.newLineAtOffset((mediabox.getWidth() - titleWidth) / 2, mediabox.getHeight() - 60 - titleHeight);
+                        contentStream.newLineAtOffset((mediabox.getWidth() - titleWidth) / 2,
+                                        mediabox.getHeight() - 60 - titleHeight);
                         contentStream.showText("Hello World");
                         contentStream.endText();
 
@@ -326,10 +390,12 @@ public class App {
                                                 // Draw partial text and increase height
                                                 contentStream.beginText();
                                                 contentStream.setFont(font, 12);
-                                                contentStream.newLineAtOffset(startX + (index == 0 ? leading : 0), height);
+                                                contentStream.newLineAtOffset(startX + (index == 0 ? leading : 0),
+                                                                height);
                                                 contentStream.showText(line.substring(start, end));
                                                 contentStream.endText();
-                                                height -= font.getFontDescriptor().getFontBoundingBox().getHeight() / 1000 * 12;
+                                                height -= font.getFontDescriptor().getFontBoundingBox().getHeight()
+                                                                / 1000 * 12;
                                                 start = end;
                                                 index++;
                                         }
@@ -370,7 +436,6 @@ public class App {
                         signatureField.setPartialName(SIGNAME);
                         PDAnnotationWidget widget = signatureField.getWidgets().get(0);
 
-                        
                         PDRectangle rect = new PDRectangle(rectX, rectY + 20, 200, 80);
                         widget.setRectangle(rect);
                         widget.setPage(page);
